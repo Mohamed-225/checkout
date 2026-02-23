@@ -17,7 +17,7 @@ async function handleRequest(request) {
     const base64Value = url.searchParams.get('id');
     
     // Set default redirect to kengster.org
-    let redirectUrl = 'https://kengster.org';
+    let redirectUrl = 'https://lovbook.net';
     
     // Only process if id parameter exists and isn't empty
     if (base64Value && base64Value.length > 0) {
@@ -49,7 +49,7 @@ async function handleRequest(request) {
     return new Response(null, {
       status: 303,
       headers: {
-        'Location': 'https://kengster.org',
+        'Location': 'https://lovbook.net',
         'Cache-Control': 'no-cache, no-store'
       }
     });
