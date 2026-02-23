@@ -2,50 +2,49 @@ addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request));
 });
 
-/**
- * Handle incoming requests
- * @param {Request} request - The incoming request
- * @returns {Response} The redirect response
- */
 async function handleRequest(request) {
-  // Start performance measurement
   const startTime = Date.now();
-  
+  let redirectUrl = 'https://lovbook.net';
+
   try {
-    // Parse the URL and get the 'id' parameter
     const url = new URL(request.url);
     const base64Value = url.searchParams.get('id');
-    
-    // Set default redirect to kengster.org
-    let redirectUrl = 'https://lovbook.net';
-    
-    // Only process if id parameter exists and isn't empty
-    if (base64Value && base64Value.length > 0) {
+
+    if (base64Value) {
       try {
-        // Decode the Base64 string
         const decodedValue = atob(base64Value);
+        const targetUrl = new URL(decodedValue);
         
-        // Basic URL validation (must start with http:// or https://)
-        if (/^https?:\/\//i.test(decodedValue)) {
+        if (targetUrl.hostname === 'www.mollie.com') {
           redirectUrl = decodedValue;
         }
-      } catch (error) {
-        // Invalid Base64 - use default redirect
-        // No logging in high-performance path
+      } catch (e) {
       }
     }
-    
-    // Create and return the redirect response
-    return new Response(null, {
-      status: 303,
+
+    const htmlResponse = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="referrer" content="origin">
+<meta http-equiv="refresh" content="0;url=${redirectUrl}">
+<title>Redirect</title>
+</head>
+<body>
+<script>window.location.replace("${redirectUrl}");</script>
+</body>
+</html>`;
+
+    return new Response(htmlResponse, {
+      status: 200,
       headers: {
-        'Location': redirectUrl,
+        'Content-Type': 'text/html;charset=UTF-8',
         'Cache-Control': 'no-cache, no-store',
         'Server-Timing': `total;dur=${Date.now() - startTime}`
       }
     });
+
   } catch (error) {
-    // Fallback for any unexpected errors
     return new Response(null, {
       status: 303,
       headers: {
