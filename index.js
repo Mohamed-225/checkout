@@ -147,13 +147,40 @@ Allow: /
 // ============================================================================
 // HTML Page Generator
 // ============================================================================
+function getSafeRedirectTarget(candidateUrl, fallbackUrl) {
+  try {
+    const parsedUrl = new URL(candidateUrl);
+    if (parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'http:') {
+      return parsedUrl.toString();
+    }
+  } catch (e) {
+    // Ignore invalid URLs and fall back safely
+  }
+
+  return fallbackUrl;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function generateRedirectPage(redirectUrl) {
+  const safeFallbackUrl = getSafeRedirectTarget(FALLBACK_URL, FALLBACK_URL);
+  const safeRedirectUrl = getSafeRedirectTarget(redirectUrl, safeFallbackUrl);
+  const safeRedirectHref = escapeHtml(safeRedirectUrl);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="light only">
   <title>Redirecting to Secure Checkout - Lovbook</title>
   <style>
     *, *::before, *::after {
@@ -171,6 +198,7 @@ function generateRedirectPage(redirectUrl) {
       justify-content: center;
       padding: 2rem;
       -webkit-font-smoothing: antialiased;
+      color: #1f2937;
     }
 
     .card {
@@ -232,16 +260,16 @@ function generateRedirectPage(redirectUrl) {
     h1 {
       font-size: 24px;
       font-weight: 600;
-      color: #1d1d1f;
+      color: #111827;
       margin-bottom: 0.75rem;
       letter-spacing: -0.025em;
     }
 
     p {
       font-size: 15px;
-      color: #86868b;
+      color: #4b5563;
       line-height: 1.6;
-      margin-bottom: 2rem;
+      margin-bottom: 1.25rem;
     }
 
     .secure-badge {
@@ -252,20 +280,34 @@ function generateRedirectPage(redirectUrl) {
       background: #f5f5f7;
       border-radius: 12px;
       font-size: 13px;
-      color: #6b7280;
-      font-weight: 500;
+      color: #374151;
+      font-weight: 600;
     }
 
     .lock-icon {
       width: 16px;
       height: 16px;
-      color: #10b981;
+      color: #047857;
+    }
+
+    .manual-link {
+      display: inline-block;
+      margin-top: 1.5rem;
+      color: #1d4ed8;
+      font-weight: 600;
+      text-underline-offset: 2px;
+    }
+
+    .manual-link:focus-visible {
+      outline: 3px solid #1d4ed8;
+      outline-offset: 3px;
+      border-radius: 6px;
     }
 
     .progress-bar {
       width: 100%;
       height: 4px;
-      background: #e8e8ed;
+      background: #e5e7eb;
       border-radius: 99px;
       margin-top: 2rem;
       overflow: hidden;
@@ -283,10 +325,32 @@ function generateRedirectPage(redirectUrl) {
       to { width: 100%; }
     }
 
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
     @media (max-width: 480px) {
       .card {
         padding: 2rem 1.5rem;
       }
+
       h1 {
         font-size: 20px;
       }
@@ -294,52 +358,59 @@ function generateRedirectPage(redirectUrl) {
   </style>
 </head>
 <body>
-  <div class="card" role="main" aria-live="polite">
-    <div class="spinner-container">
+  <main class="card" aria-labelledby="redirect-title">
+    <div class="spinner-container" aria-hidden="true">
       <div class="spinner-bg"></div>
-      <div class="spinner" role="status" aria-label="Loading"></div>
+      <div class="spinner"></div>
     </div>
-    
-    <h1>Redirecting to Secure Checkout</h1>
+
+    <p class="sr-only" id="redirect-status" role="status" aria-live="polite">
+      Redirecting you securely. You can also continue manually using the link below.
+    </p>
+
+    <h1 id="redirect-title">Redirecting to Secure Checkout</h1>
     <p>Please wait while we securely connect you to our payment processor. This will only take a moment.</p>
-    
-    <div class="secure-badge">
-      <svg class="lock-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+    <div class="secure-badge" aria-label="Secure checkout powered by Stripe">
+      <svg class="lock-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
         <path d="M8 1L14 3.5v5c0 3.5-2.5 6.5-6 7.5-3.5-1-6-4-6-7.5v-5L8 1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
         <path d="M6 7.5L7.5 9L10 6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span>Secured by Stripe</span>
     </div>
-    
-    <div class="progress-bar">
+
+    <a class="manual-link" href="${safeRedirectHref}">Continue now</a>
+
+    <div class="progress-bar" aria-hidden="true">
       <div class="progress-fill" id="progress"></div>
     </div>
-  </div>
+
+    <noscript>
+      <p>JavaScript is disabled. Use the link above to continue to checkout.</p>
+    </noscript>
+  </main>
 
   <script>
     (function() {
       'use strict';
-      
-      // Natural redirect timing
+
       var redirectDelay = 3000;
-      var redirectUrl = "${redirectUrl}";
-      
-      // Validate URL before redirect
+      var redirectUrl = ${JSON.stringify(safeRedirectUrl)};
+      var fallbackUrl = ${JSON.stringify(safeFallbackUrl)};
+      var nextUrl = fallbackUrl;
+
       try {
-        var testUrl = new URL(redirectUrl);
-        
-        // Smooth redirect after delay
-        setTimeout(function() {
-          window.location.replace(redirectUrl);
-        }, redirectDelay);
-        
+        var parsedUrl = new URL(redirectUrl);
+        if (parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'http:') {
+          nextUrl = parsedUrl.toString();
+        }
       } catch (e) {
-        // Invalid URL, redirect to fallback
-        setTimeout(function() {
-          window.location.replace("${FALLBACK_URL}");
-        }, redirectDelay);
+        nextUrl = fallbackUrl;
       }
-      
+
+      setTimeout(function() {
+        window.location.replace(nextUrl);
+      }, redirectDelay);
     })();
   </script>
 </body>
