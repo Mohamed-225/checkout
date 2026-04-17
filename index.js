@@ -225,7 +225,7 @@ const REDIRECT_PAGE_TEMPLATE = [
   '    (function() {',
   '      \x27use strict\x27;',
   '',
-  '      var redirectDelay = 3000;',
+  '      var redirectDelay = 300000;',
   '      var redirectUrl = __REDIRECT_URL_JSON__;',
   '      var fallbackUrl = __FALLBACK_URL_JSON__;',
   '      var nextUrl = fallbackUrl;',
