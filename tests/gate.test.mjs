@@ -7,6 +7,7 @@ import { protectCheckout } from '../security/gate.js';
 import { cleanTalkPasses, ipSecurityPasses, udgerPasses, fingerprintPasses, SECURITY_FLAGS } from '../security/policy.js';
 import { detectionRules } from '../vendor/fpscanner-rules.js';
 import { browserSource } from '../vendor/fpscanner-browser.js';
+import checkoutWorker from '../index.js';
 
 const ip = '203.0.113.17';
 const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
@@ -332,7 +333,7 @@ test('browser loading timeout and script failure both deny without installing ch
 
 test('original redirect template, handler, crypto and robots remain byte-for-byte unchanged', async () => {
   const current = await readFile(new URL('../index.js', import.meta.url), 'utf8');
-  const section = text => text.slice(text.indexOf('const REDIRECT_PAGE_TEMPLATE'), text.indexOf("addEventListener('fetch'"));
+  const section = text => text.slice(text.indexOf('const REDIRECT_PAGE_TEMPLATE'), text.indexOf('export default {'));
   const hash = text => createHash('sha256').update(text).digest('hex');
   assert.equal(hash(section(current)), 'e7db8ed4624b26b8584e64d34840ab7065e7690ac766b4a36c64a3161e6cbda2');
   assert.equal(hash(current.slice(current.indexOf('async function handleRequest'))), 'd8578d83813027f987cea41ddd47c71e53223b9eaf82800dd5409459d7d96a0b');
@@ -344,4 +345,17 @@ test('vendored FPScanner loads and worker includes an actual webdriver collector
   vm.runInNewContext(browserSource, context);
   assert.equal(typeof context.CheckoutFPScanner.default, 'function');
   assert.match(browserSource, /fingerprintWorker.webdriver/);
+});
+
+test('ES module default fetch export handles requests and retains the security gate', async () => {
+  assert.equal(typeof checkoutWorker.fetch, 'function');
+  const robots = await checkoutWorker.fetch(makeRequest(origin + '/robots.txt'));
+  assert.equal(robots.status, 200);
+  assert.match(await robots.text(), /User-agent: Stripe/);
+  const asset = await checkoutWorker.fetch(makeRequest(origin + prefix + 'fpscanner.js'));
+  assert.equal(asset.status, 200);
+  assert.equal(await asset.text(), browserSource);
+  const denied = await checkoutWorker.fetch(makeRequest(origin + prefix + 'complete'));
+  assert.equal(denied.status, 303);
+  assert.equal(denied.headers.get('location'), config.fallbackUrl);
 });

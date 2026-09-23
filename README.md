@@ -4,6 +4,8 @@ The Cloudflare Worker first returns HTTP 200 with a white loading screen. The br
 
 The original redirect template, five-minute delay (`300000`), manual link, AES-GCM decryption, fallback URL and robots response are unchanged. No checkout HTML, decrypted payment URL, manual payment link, payment iframe or payment resource is sent before approval.
 
+The Worker entry point uses an ES module default export with a `fetch(request)` handler, so it supports Cloudflare's Versions Upload API as well as normal deployments. It does not register a Service Worker `fetch` event listener.
+
 ## Configuration
 
 Fill these server-only constants at the top of `index.js` before deployment:
