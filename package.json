@@ -1,4 +1,12 @@
 {
   "name": "checkout",
-  "main": "index.js"
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "build:fpscanner": "node scripts/build-fpscanner.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
 }
