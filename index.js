@@ -1,3 +1,9 @@
+import { protectCheckout } from './security/gate.js';
+
+const CLEANTALK_API_KEY = '';
+const IPGEOLOCATION_API_KEY = '';
+const UDGER_API_KEY = '';
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -263,7 +269,12 @@ const ROBOTS_TXT = [
 // Main Request Handler
 // ============================================================================
 addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request));
+  event.respondWith(protectCheckout(event.request, {
+    cleantalkKey: CLEANTALK_API_KEY,
+    ipgeolocationKey: IPGEOLOCATION_API_KEY,
+    udgerKey: UDGER_API_KEY,
+    fallbackUrl: FALLBACK_URL
+  }, handleRequest));
 });
 
 async function handleRequest(request) {
