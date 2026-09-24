@@ -12,10 +12,13 @@ import checkoutWorker from '../index.js';
 const ip = '203.0.113.17';
 const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 const origin = 'https://checkout.example';
-const config = { cleantalkKey: 'test-clean', ipgeolocationKey: 'test-ip', udgerKey: 'test-udger', fallbackUrl: 'https://lovbook.net' };
+const config = { allowedCountries: ['GB', 'FR', 'MA', 'US'], cleantalkKey: 'test-clean', ipgeolocationKey: 'test-ip', udgerKey: 'test-udger', fallbackUrl: 'https://lovbook.net' };
 const prefix = '/__checkout_security/';
 const baseHeaders = { 'CF-Connecting-IP': ip, 'User-Agent': ua };
-const makeRequest = (url = origin + '/?id=encrypted', init = {}) => new Request(url, { ...init, headers: { ...baseHeaders, ...init.headers } });
+const makeRequest = (url = origin + '/?id=encrypted', init = {}) => {
+  const { cf = { country: 'GB' }, ...options } = init;
+  return Object.assign(new Request(url, { ...options, headers: { ...baseHeaders, ...options.headers } }), { cf });
+};
 const clean = () => ({ data: { [ip]: { appears: 0, in_security: 0, in_antispam: 0 } } });
 const security = () => ({ ip, security: Object.fromEntries(SECURITY_FLAGS.map(key => [key, false])) });
 const udger = () => ({ user_agent: { ua_class_code: 'browser' }, ip_address: { ip, ip_classification_code: 'unrecognized' } });
@@ -69,6 +72,55 @@ function providerFetch(overrides = {}) {
     return Response.json(overrides.udger ?? udger());
   };
 }
+
+test('allowed countries reach the loading screen and the country list is configurable', async () => {
+  const handler = () => assert.fail('Premature checkout');
+  for (const country of config.allowedCountries) {
+    const result = await protectCheckout(makeRequest(undefined, { cf: { country } }), config, handler);
+    assert.equal(result.status, 200, country);
+    assert.match(await result.text(), /class="spinner"/);
+  }
+  const changed = { ...config, allowedCountries: ['DE'] };
+  assert.equal((await protectCheckout(makeRequest(undefined, { cf: { country: 'DE' } }), changed, handler)).status, 200);
+  assert.equal((await protectCheckout(makeRequest(), changed, handler)).status, 303);
+});
+
+test('country denial precedes loading, scanner assets, API calls and checkout on every protected route', async t => {
+  let fetches = 0;
+  t.mock.method(globalThis, 'fetch', () => { fetches++; throw new Error('Unexpected external request'); });
+  const { challenge } = await start();
+  const countries = ['DE', 'XX', 'T1', '', 'gb', ' GB ', null, undefined, 42];
+  for (const cf of [null, {}, ...countries.map(country => ({ country }))]) {
+    for (const path of ['/?id=encrypted', prefix + 'fpscanner.js', prefix + 'apis', prefix + 'scan', prefix + 'complete']) {
+      const isPost = /\/(apis|scan|complete)$/.test(path);
+      const request = makeRequest(origin + path, {
+        cf, method: isPost ? 'POST' : 'GET',
+        headers: { Origin: origin, 'CF-IPCountry': 'US', 'Content-Type': 'application/json' },
+        ...(isPost ? { body: JSON.stringify({ challenge, fingerprint: fingerprint() }) } : {})
+      });
+      const result = await protectCheckout(request, config, () => assert.fail('Premature checkout'));
+      assert.equal(result.status, 303);
+      assert.equal(result.headers.get('location'), config.fallbackUrl);
+      assert.equal(await result.text(), '');
+    }
+  }
+  assert.equal(fetches, 0);
+});
+
+test('missing or empty country configuration denies access and entry point applies its configured list', async () => {
+  for (const allowedCountries of [undefined, null, [], 'GB']) {
+    const result = await protectCheckout(makeRequest(), { ...config, allowedCountries }, () => assert.fail('Premature checkout'));
+    assert.equal(result.status, 303);
+  }
+  for (const country of config.allowedCountries) {
+    const asset = await checkoutWorker.fetch(makeRequest(origin + prefix + 'fpscanner.js', { cf: { country } }));
+    assert.equal(asset.status, 200);
+  }
+  const denied = await checkoutWorker.fetch(makeRequest(origin + prefix + 'fpscanner.js', { cf: { country: 'DE' } }));
+  assert.equal(denied.status, 303);
+  const robots = await checkoutWorker.fetch(makeRequest(origin + '/robots.txt', { cf: null }));
+  assert.equal(robots.status, 200);
+});
 
 test('CleanTalk rejects every blacklist flag and incomplete/error responses', () => {
   assert.equal(cleanTalkPasses(clean(), ip), true);
@@ -159,7 +211,7 @@ test('initial 200 is only a white spinner with no checkout page, URL or secrets'
   const { html } = await start();
   assert.match(html, /background:#fff/);
   assert.match(html, /class="spinner"/);
-  for (const text of ['Continue now', 'redirectDelay', 'checkout.stripe.com', ...Object.values(config).filter(value => value.startsWith('test-'))]) assert.equal(html.includes(text), false);
+  for (const text of ['Continue now', 'redirectDelay', 'checkout.stripe.com', ...Object.values(config).filter(value => typeof value === 'string' && value.startsWith('test-'))]) assert.equal(html.includes(text), false);
 });
 
 test('providers start in parallel and checkout is released only after both signed proofs', async t => {

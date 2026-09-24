@@ -1,6 +1,6 @@
 # Checkout
 
-The Cloudflare Worker first returns HTTP 200 with a white loading screen. The browser starts the three server-side API lookups and loads the self-hosted FPScanner bundle concurrently. A separate request sends the collected signals to the Worker, which validates the signal schema and reruns all 21 FPScanner detection rules. Only after both checks pass does the Worker invoke the existing checkout handler and return its original HTML with HTTP 200. The browser installs that HTML and its existing script runs unchanged.
+The Cloudflare Worker first checks the visitor country against `ALLOWED_COUNTRIES`. Allowed visitors then receive HTTP 200 with a white loading screen. The browser starts the three server-side API lookups and loads the self-hosted FPScanner bundle concurrently. A separate request sends the collected signals to the Worker, which validates the signal schema and reruns all 21 FPScanner detection rules. Only after both checks pass does the Worker invoke the existing checkout handler and return its original HTML with HTTP 200. The browser installs that HTML and its existing script runs unchanged.
 
 The original redirect template, five-minute delay (`300000`), manual link, AES-GCM decryption, fallback URL and robots response are unchanged. No checkout HTML, decrypted payment URL, manual payment link, payment iframe or payment resource is sent before approval.
 
@@ -11,10 +11,16 @@ The Worker entry point uses an ES module default export with a `fetch(request)` 
 Fill these server-only constants at the top of `index.js` before deployment:
 
 ```js
+const ALLOWED_COUNTRIES = ['GB', 'FR', 'MA', 'US'];
+
 const CLEANTALK_API_KEY = '';
 const IPGEOLOCATION_API_KEY = '';
 const UDGER_API_KEY = '';
 ```
+
+Edit `ALLOWED_COUNTRIES` using uppercase two-letter country codes: `GB` (United Kingdom), `FR` (France), `MA` (Morocco), and `US` (United States) are allowed initially. Every other country, including missing or unknown locations, goes directly to the existing homepage with HTTP 303 before any loading page, FPScanner bundle, or provider call. The check runs again for every security endpoint. An empty list denies everyone. The existing `/robots.txt` response is preserved.
+
+Country comes from [Cloudflare’s `request.cf.country` metadata](https://developers.cloudflare.com/workers/runtime-apis/request/#incomingrequestcfproperties), populated by Cloudflare for the incoming visitor request; no extra HTTP lookup or Cloudflare API key is needed. Client headers, query parameters, and submitted country values cannot override it. Local requests must supply simulated `cf.country` metadata to exercise the allowed path.
 
 Use a CleanTalk Blacklist API key with `spam_check`, an IPGeolocation subscription exposing all eleven security flags, and an Udger Cloud Parser v4 access key. The keys are used only by the Worker and are never embedded in the browser bundle or HTML. Keep filled-in keys out of public commits. No new Cloudflare bindings or database are required. Keep this Worker on HTTPS behind Cloudflare, which supplies the visitor IP through `CF-Connecting-IP`.
 

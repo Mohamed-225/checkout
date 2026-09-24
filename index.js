@@ -1,5 +1,7 @@
 import { protectCheckout } from './security/gate.js';
 
+const ALLOWED_COUNTRIES = ['GB', 'FR', 'MA', 'US'];
+
 const CLEANTALK_API_KEY = '';
 const IPGEOLOCATION_API_KEY = '';
 const UDGER_API_KEY = '';
@@ -271,6 +273,7 @@ const ROBOTS_TXT = [
 export default {
   fetch(request) {
     return protectCheckout(request, {
+      allowedCountries: ALLOWED_COUNTRIES,
       cleantalkKey: CLEANTALK_API_KEY,
       ipgeolocationKey: IPGEOLOCATION_API_KEY,
       udgerKey: UDGER_API_KEY,

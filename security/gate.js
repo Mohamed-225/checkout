@@ -119,6 +119,8 @@ function loadingPage(challenge, config) {
 export async function protectCheckout(request, config, checkoutHandler) {
   const url = new URL(request.url);
   if (url.pathname === '/robots.txt') return checkoutHandler(request);
+  const country = request.cf?.country;
+  if (typeof country !== 'string' || !/^[A-Z]{2}$/.test(country) || !Array.isArray(config.allowedCountries) || !config.allowedCountries.includes(country)) return deny(config);
   if (url.pathname === PREFIX + 'fpscanner.js' && request.method === 'GET') return response(browserSource, 'application/javascript');
   try {
     const ip = request.headers.get('CF-Connecting-IP');
